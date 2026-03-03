@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Ledger — Budget</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      fontFamily: {
+        serif: ['Instrument Serif', 'serif'],
+        mono: ['Geist Mono', 'monospace'],
+      },
+      colors: {
+        ink: '#0d0d0d',
+        surface: '#141414',
+        panel: '#1a1a1a',
+        border: '#252525',
+        muted: '#404040',
+        dim: '#888888',
+        light: '#d4d0c8',
+        bright: '#f0ece0',
+        accent: '#c8f064',
+        danger: '#ff5f57',
+        warn: '#ffbd2e',
+        safe: '#27c93f',
+      },
+    },
+  },
+};
+</script>
+<style>
+  * { box-sizing: border-box; }
+  body { background: #0d0d0d; color: #d4d0c8; font-family: 'Geist Mono', monospace; }
+  ::selection { background: #c8f064; color: #0d0d0d; }
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: #141414; }
+  ::-webkit-scrollbar-thumb { background: #404040; border-radius: 2px; }
+
+  /* Login */
+  #login-screen { position: fixed; inset: 0; background: #0d0d0d; z-index: 100; display: flex; align-items: center; justify-content: center; }
+  .login-card { width: 360px; }
+  .input-field { width: 100%; background: #141414; border: 1px solid #252525; color: #d4d0c8; padding: 12px 14px; font-family: 'Geist Mono', monospace; font-size: 13px; outline: none; transition: border-color .2s; }
+  .input-field:focus { border-color: #c8f064; }
+  .input-field::placeholder { color: #404040; }
+
+  /* Progress bars */
+  .progress-track { background: #252525; height: 3px; border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; border-radius: 2px; transition: width .4s ease; }
+  .progress-fill.safe { background: #c8f064; }
+  .progress-fill.warn { background: #ffbd2e; }
+  .progress-fill.danger { background: #ff5f57; }
+
+  /* Category rows */
+  .cat-row { border-bottom: 1px solid #1a1a1a; transition: background .15s; cursor: pointer; }
+  .cat-row:hover { background: #161616; }
+  .cat-row:last-child { border-bottom: none; }
+
+  /* Modal */
+  #modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 50; display: none; align-items: center; justify-content: center; backdrop-filter: blur(4px); }
+  #modal-overlay.open { display: flex; }
+  .modal { background: #141414; border: 1px solid #252525; width: 420px; max-width: 95vw; }
+
+  /* Nav tabs */
+  .nav-tab { padding: 8px 16px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; border-bottom: 2px solid transparent; color: #888; cursor: pointer; transition: all .15s; }
+  .nav-tab.active { color: #c8f064; border-bottom-color: #c8f064; }
+
+  /* Sidebar month */
+  .month-item { padding: 10px 16px; font-size: 11px; cursor: pointer; color: #888; letter-spacing: .05em; transition: all .15s; }
+  .month-item:hover { color: #d4d0c8; background: #1a1a1a; }
+  .month-item.active { color: #c8f064; background: #1a1a1a; }
+
+  /* Tooltip */
+  .tooltip { position: relative; }
+  .tooltip-text { visibility: hidden; background: #252525; color: #d4d0c8; font-size: 11px; padding: 4px 8px; position: absolute; bottom: 130%; left: 50%; transform: translateX(-50%); white-space: nowrap; z-index: 10; }
+  .tooltip:hover .tooltip-text { visibility: visible; }
+
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeIn .3s ease forwards; }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  .slide-up { animation: slideUp .4s ease forwards; }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- ─── LOGIN ─────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card slide-up">
+    <div class="mb-10">
+      <p class="text-dim text-xs tracking-widest uppercase mb-3">Personal Finance</p>
+      <h1 class="font-serif text-5xl text-bright leading-none">Ledger</h1>
+    </div>
+    <div id="login-error" class="hidden text-xs text-danger mb-4 font-mono">Incorrect credentials.</div>
+    <div class="space-y-3">
+      <input id="login-user" type="text" placeholder="Username" class="input-field" autocomplete="username" />
+      <input id="login-pass" type="password" placeholder="Password" class="input-field" autocomplete="current-password" />
+      <button onclick="doLogin()" class="w-full bg-accent text-ink font-mono text-xs tracking-widest uppercase py-3 hover:bg-bright transition-colors font-semibold mt-2">
+        Sign In →
+      </button>
+    </div>
+    <p class="text-muted text-xs mt-6 text-center">Default: <span class="text-dim">toni</span> / <span class="text-dim">budget</span></p>
+  </div>
+</div>
+
+<!-- ─── APP ───────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden min-h-screen flex flex-col">
+
+  <!-- Top Bar -->
+  <header class="border-b border-border flex items-center justify-between px-6 py-4">
+    <div class="flex items-center gap-6">
+      <h1 class="font-serif text-2xl text-bright">Ledger</h1>
+      <div class="flex gap-0 border-b border-transparent ml-4">
+        <span class="nav-tab active" onclick="switchTab('budget',this)">Budget</span>
+        <span class="nav-tab" onclick="switchTab('transactions',this)">Transactions</span>
+        <span class="nav-tab" onclick="switchTab('overview',this)">Overview</span>
+      </div>
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="header-month" class="text-dim text-xs tracking-widest uppercase"></span>
+      <button onclick="openAddTransaction()" class="bg-accent text-ink text-xs font-mono font-semibold px-4 py-2 hover:bg-bright transition-colors tracking-wide">+ Add</button>
+      <button onclick="doLogout()" class="text-muted text-xs hover:text-dim transition-colors">Sign out</button>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden" style="height: calc(100vh - 57px);">
+
+    <!-- Sidebar -->
+    <aside class="w-44 border-r border-border flex flex-col shrink-0 overflow-y-auto">
+      <div class="px-4 pt-5 pb-3">
+        <p class="text-muted text-xs tracking-widest uppercase mb-3">Months</p>
+      </div>
+      <div id="month-list"></div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+
+      <!-- ── BUDGET TAB ── -->
+      <div id="tab-budget" class="fade-in">
+        <!-- Summary Bar -->
+        <div id="summary-bar" class="grid grid-cols-3 border-b border-border">
+          <div class="p-6 border-r border-border">
+            <p class="text-muted text-xs tracking-widest uppercase mb-2">Budgeted Income</p>
+            <p class="font-mono text-2xl text-bright" id="sum-income">$0.00</p>
+          </div>
+          <div class="p-6 border-r border-border">
+            <p class="text-muted text-xs tracking-widest uppercase mb-2">Budgeted</p>
+            <p class="font-mono text-2xl text-bright" id="sum-budgeted">$0.00</p>
+          </div>
+          <div class="p-6">
+            <p class="text-muted text-xs tracking-widest uppercase mb-2">Left to Budget</p>
+            <p class="font-mono text-2xl" id="sum-left">$0.00</p>
+          </div>
+        </div>
+
+        <!-- Category Groups -->
+        <div id="category-groups" class="p-6 space-y-6"></div>
+
+        <div class="px-6 pb-6">
+          <button onclick="openAddGroup()" class="text-xs text-muted hover:text-dim transition-colors tracking-wide border border-border px-4 py-2">+ Add Group</button>
+        </div>
+      </div>
+
+      <!-- ── TRANSACTIONS TAB ── -->
+      <div id="tab-transactions" class="fade-in hidden">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-5">
+            <h2 class="font-serif text-2xl text-bright">Transactions</h2>
+            <button onclick="openAddTransaction()" class="text-xs text-accent hover:text-bright transition-colors tracking-wide">+ New Transaction</button>
+          </div>
+          <div id="tx-list" class="space-y-px"></div>
+        </div>
+      </div>
+
+      <!-- ── OVERVIEW TAB ── -->
+      <div id="tab-overview" class="fade-in hidden">
+        <div class="p-6">
+          <h2 class="font-serif text-2xl text-bright mb-6">Overview</h2>
+          <div id="overview-content" class="space-y-4"></div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Right Panel — spending summary -->
+    <aside class="w-72 border-l border-border overflow-y-auto shrink-0">
+      <div class="p-5">
+        <p class="text-muted text-xs tracking-widest uppercase mb-4">Spending</p>
+        <div id="spending-panel" class="space-y-3"></div>
+      </div>
+      <div class="border-t border-border p-5 mt-2">
+        <p class="text-muted text-xs tracking-widest uppercase mb-4">Recent</p>
+        <div id="recent-panel" class="space-y-2"></div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- ─── MODAL ─────────────────────────────────────────────────────────── -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="p-5 border-b border-border flex items-center justify-between">
+      <h3 id="modal-title" class="font-serif text-xl text-bright">Add Transaction</h3>
+      <button onclick="closeModal()" class="text-muted hover:text-dim text-lg leading-none">×</button>
+    </div>
+    <div id="modal-body" class="p-5 space-y-3"></div>
+    <div class="p-5 border-t border-border flex gap-3">
+      <button id="modal-submit" class="bg-accent text-ink text-xs font-mono font-semibold px-5 py-2.5 hover:bg-bright transition-colors tracking-wide flex-1">Save</button>
+      <button onclick="closeModal()" class="text-xs text-muted hover:text-dim px-4 py-2.5 border border-border transition-colors tracking-wide">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── STATE ─────────────────────────────────────────────────────────────────
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const CREDENTIALS = { toni: 'budget' };
+
+let state = {
+  currentMonth: null, // "2026-02"
+  data: {}, // keyed by "YYYY-MM"
+};
+
+function monthKey(y, m) { return `${y}-${String(m+1).padStart(2,'0')}`; }
+function today() { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; }
+
+function defaultMonth(key) {
+  return {
+    income: [],      // [{id, name, budgeted, received}]
+    groups: [],      // [{id, name, cats}]  cats: [{id, name, budgeted, spent}]
+    transactions: [] // [{id, date, payee, category, catGroup, amount, type:'expense'|'income'}]
+  };
+}
+
+function getMonth() {
+  if (!state.data[state.currentMonth]) state.data[state.currentMonth] = defaultMonth(state.currentMonth);
+  return state.data[state.currentMonth];
+}
+
+function save() { localStorage.setItem('ledger_state', JSON.stringify(state)); }
+
+function load() {
+  const raw = localStorage.getItem('ledger_state');
+  if (raw) state = JSON.parse(raw);
+  const t = today();
+  if (!state.currentMonth) state.currentMonth = monthKey(t.y, t.m);
+}
+
+// ─── DEFAULT DATA ──────────────────────────────────────────────────────────
+function seedDefaults() {
+  const t = today();
+  const key = monthKey(t.y, t.m);
+  if (state.data[key]) return;
+  state.data[key] = {
+    income: [
+      { id: uid(), name: 'Paycheck', budgeted: 5500, received: 5500 }
+    ],
+    groups: [
+      { id: uid(), name: 'Housing', cats: [
+        { id: uid(), name: 'Mortgage / Rent', budgeted: 2200, spent: 2200 },
+        { id: uid(), name: 'Utilities', budgeted: 180, spent: 142 },
+        { id: uid(), name: 'Internet', budgeted: 80, spent: 80 },
+      ]},
+      { id: uid(), name: 'Food', cats: [
+        { id: uid(), name: 'Groceries', budgeted: 600, spent: 320 },
+        { id: uid(), name: 'Dining Out', budgeted: 200, spent: 87 },
+      ]},
+      { id: uid(), name: 'Transport', cats: [
+        { id: uid(), name: 'Gas', budgeted: 120, spent: 65 },
+        { id: uid(), name: 'Car Insurance', budgeted: 140, spent: 140 },
+      ]},
+      { id: uid(), name: 'Health', cats: [
+        { id: uid(), name: 'Medical Premiums', budgeted: 280, spent: 280 },
+        { id: uid(), name: 'Pharmacy', budgeted: 40, spent: 12 },
+      ]},
+      { id: uid(), name: 'Personal', cats: [
+        { id: uid(), name: 'Running / Fitness', budgeted: 80, spent: 35 },
+        { id: uid(), name: 'Subscriptions', budgeted: 50, spent: 47 },
+      ]},
+    ],
+    transactions: [
+      { id: uid(), date: fmtDate(new Date()), payee: 'Whole Foods', category: 'Groceries', catGroup: 'Food', amount: 94.30, type: 'expense' },
+      { id: uid(), date: fmtDate(new Date(new Date()-86400000)), payee: 'Paycheck', category: 'Paycheck', catGroup: 'Income', amount: 5500, type: 'income' },
+      { id: uid(), date: fmtDate(new Date(new Date()-172800000)), payee: 'Shell Gas', category: 'Gas', catGroup: 'Transport', amount: 65, type: 'expense' },
+      { id: uid(), date: fmtDate(new Date(new Date()-259200000)), payee: 'Chipotle', category: 'Dining Out', catGroup: 'Food', amount: 18.75, type: 'expense' },
+    ]
+  };
+  save();
+}
+
+function fmtDate(d) {
+  return d.toISOString().slice(0,10);
+}
+
+function uid() { return Math.random().toString(36).slice(2,9); }
+
+// ─── AUTH ──────────────────────────────────────────────────────────────────
+function doLogin() {
+  const u = document.getElementById('login-user').value.trim().toLowerCase();
+  const p = document.getElementById('login-pass').value;
+  if (CREDENTIALS[u] && CREDENTIALS[u] === p) {
+    document.getElementById('login-screen').style.opacity = '0';
+    document.getElementById('login-screen').style.transition = 'opacity .3s';
+    setTimeout(() => {
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').classList.remove('hidden');
+      initApp();
+    }, 300);
+  } else {
+    document.getElementById('login-error').classList.remove('hidden');
+  }
+}
+
+document.getElementById('login-pass').addEventListener('keydown', e => { if(e.key==='Enter') doLogin(); });
+document.getElementById('login-user').addEventListener('keydown', e => { if(e.key==='Enter') document.getElementById('login-pass').focus(); });
+
+function doLogout() {
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('login-screen').style.display='flex';
+  document.getElementById('login-screen').style.opacity='1';
+  document.getElementById('login-pass').value='';
+}
+
+// ─── INIT ──────────────────────────────────────────────────────────────────
+function initApp() {
+  load();
+  seedDefaults();
+  renderMonthList();
+  renderAll();
+}
+
+// ─── RENDER MONTHS ─────────────────────────────────────────────────────────
+function renderMonthList() {
+  const t = today();
+  const list = document.getElementById('month-list');
+  list.innerHTML = '';
+  // Show 6 months back + 6 forward
+  for (let i = -3; i <= 5; i++) {
+    let m = t.m + i, y = t.y;
+    while (m < 0) { m += 12; y--; }
+    while (m > 11) { m -= 12; y++; }
+    const key = monthKey(y, m);
+    const el = document.createElement('div');
+    el.className = 'month-item' + (key === state.currentMonth ? ' active' : '');
+    el.textContent = `${MONTHS[m]} ${y}`;
+    el.onclick = () => { state.currentMonth = key; save(); renderMonthList(); renderAll(); };
+    list.appendChild(el);
+  }
+}
+
+// ─── RENDER ALL ────────────────────────────────────────────────────────────
+function renderAll() {
+  const key = state.currentMonth;
+  const [y, m] = key.split('-').map(Number);
+  document.getElementById('header-month').textContent = `${FULL_MONTHS[m-1]} ${y}`;
+  renderBudget();
+  renderTransactions();
+  renderOverview();
+  renderSidePanels();
+}
+
+function fmt(n) { return '$' + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function renderBudget() {
+  const mo = getMonth();
+
+  // Summary
+  const totalIncome = mo.income.reduce((s,i)=>s+i.budgeted,0);
+  const totalBudgeted = mo.groups.reduce((s,g)=>s+g.cats.reduce((ss,c)=>ss+c.budgeted,0),0);
+  const left = totalIncome - totalBudgeted;
+
+  document.getElementById('sum-income').textContent = fmt(totalIncome);
+  document.getElementById('sum-budgeted').textContent = fmt(totalBudgeted);
+  const leftEl = document.getElementById('sum-left');
+  leftEl.textContent = (left < 0 ? '-' : '') + fmt(left);
+  leftEl.className = 'font-mono text-2xl ' + (left < 0 ? 'text-danger' : left === 0 ? 'text-accent' : 'text-bright');
+
+  const container = document.getElementById('category-groups');
+  container.innerHTML = '';
+
+  // Income group
+  const incSection = document.createElement('div');
+  incSection.innerHTML = `
+    <div class="flex items-center justify-between mb-2">
+      <div class="flex items-center gap-3">
+        <span class="text-xs tracking-widest uppercase text-dim">Income</span>
+        <button onclick="openAddIncome()" class="text-muted hover:text-dim text-xs transition-colors">+ source</button>
+      </div>
+      <div class="flex gap-8 text-xs text-muted tracking-widest uppercase pr-1">
+        <span class="w-24 text-right">Budgeted</span>
+        <span class="w-24 text-right">Received</span>
+      </div>
+    </div>
+    <div class="border border-border">
+      ${mo.income.map(inc => `
+        <div class="cat-row px-4 py-3 flex items-center justify-between" onclick="openEditIncome('${inc.id}')">
+          <span class="text-sm text-light">${inc.name}</span>
+          <div class="flex gap-8 items-center">
+            <span class="font-mono text-sm w-24 text-right text-bright">${fmt(inc.budgeted)}</span>
+            <span class="font-mono text-sm w-24 text-right ${inc.received >= inc.budgeted ? 'text-accent' : 'text-warn'}">${fmt(inc.received)}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  container.appendChild(incSection);
+
+  // Category groups
+  mo.groups.forEach(group => {
+    const groupTotal = group.cats.reduce((s,c)=>s+c.budgeted,0);
+    const groupSpent = group.cats.reduce((s,c)=>s+c.spent,0);
+    const groupLeft = groupTotal - groupSpent;
+
+    const section = document.createElement('div');
+    section.innerHTML = `
+      <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-3">
+          <span class="text-xs tracking-widest uppercase text-dim">${group.name}</span>
+          <button onclick="openAddCat('${group.id}')" class="text-muted hover:text-dim text-xs transition-colors">+ category</button>
+        </div>
+        <div class="flex gap-8 text-xs text-muted tracking-widest uppercase pr-1">
+          <span class="w-24 text-right">Budgeted</span>
+          <span class="w-24 text-right">Spent</span>
+          <span class="w-20 text-right">Left</span>
+        </div>
+      </div>
+      <div class="border border-border">
+        ${group.cats.map(cat => {
+          const pct = cat.budgeted > 0 ? Math.min(100, (cat.spent/cat.budgeted)*100) : 0;
+          const cls = pct >= 100 ? 'danger' : pct >= 80 ? 'warn' : 'safe';
+          const leftCat = cat.budgeted - cat.spent;
+          return `
+          <div class="cat-row px-4 py-3" onclick="openEditCat('${group.id}','${cat.id}')">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-light">${cat.name}</span>
+              <div class="flex gap-8 items-center">
+                <span class="font-mono text-sm w-24 text-right text-bright">${fmt(cat.budgeted)}</span>
+                <span class="font-mono text-sm w-24 text-right text-dim">${fmt(cat.spent)}</span>
+                <span class="font-mono text-sm w-20 text-right ${leftCat < 0 ? 'text-danger' : leftCat === 0 ? 'text-dim' : 'text-accent'}">${leftCat < 0 ? '-' : ''}${fmt(leftCat)}</span>
+              </div>
+            </div>
+            <div class="progress-track mt-2">
+              <div class="progress-fill ${cls}" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `}).join('')}
+        <div class="px-4 py-2 flex items-center justify-between bg-surface">
+          <span class="text-xs text-muted">Total</span>
+          <div class="flex gap-8">
+            <span class="font-mono text-xs w-24 text-right text-dim">${fmt(groupTotal)}</span>
+            <span class="font-mono text-xs w-24 text-right text-dim">${fmt(groupSpent)}</span>
+            <span class="font-mono text-xs w-20 text-right ${groupLeft < 0 ? 'text-danger' : 'text-dim'}">${groupLeft < 0 ? '-' : ''}${fmt(groupLeft)}</span>
+          </div>
+        </div>
+      </div>
+    `;
+    container.appendChild(section);
+  });
+}
+
+function renderTransactions() {
+  const mo = getMonth();
+  const list = document.getElementById('tx-list');
+  const sorted = [...mo.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+
+  if (sorted.length === 0) {
+    list.innerHTML = '<p class="text-muted text-sm">No transactions yet.</p>';
+    return;
+  }
+
+  list.innerHTML = sorted.map(tx => `
+    <div class="flex items-center justify-between py-3 px-4 border border-border hover:bg-panel transition-colors group">
+      <div class="flex items-center gap-4">
+        <span class="font-mono text-xs text-muted w-20">${tx.date.slice(5)}</span>
+        <div>
+          <p class="text-sm text-light">${tx.payee}</p>
+          <p class="text-xs text-muted">${tx.catGroup} · ${tx.category}</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-4">
+        <span class="font-mono text-sm ${tx.type==='income' ? 'text-accent' : 'text-light'}">${tx.type==='income' ? '+' : '-'}${fmt(tx.amount)}</span>
+        <button onclick="deleteTransaction('${tx.id}')" class="text-muted hover:text-danger text-xs opacity-0 group-hover:opacity-100 transition-all">✕</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderOverview() {
+  const mo = getMonth();
+  const container = document.getElementById('overview-content');
+  const totalIncome = mo.income.reduce((s,i)=>s+i.received,0);
+  const totalSpent = mo.groups.reduce((s,g)=>s+g.cats.reduce((ss,c)=>ss+c.spent,0),0);
+  const saved = totalIncome - totalSpent;
+
+  container.innerHTML = `
+    <div class="grid grid-cols-3 gap-4 mb-8">
+      <div class="border border-border p-5">
+        <p class="text-muted text-xs tracking-widest uppercase mb-2">Income</p>
+        <p class="font-mono text-2xl text-accent">${fmt(totalIncome)}</p>
+      </div>
+      <div class="border border-border p-5">
+        <p class="text-muted text-xs tracking-widest uppercase mb-2">Spent</p>
+        <p class="font-mono text-2xl text-bright">${fmt(totalSpent)}</p>
+      </div>
+      <div class="border border-border p-5">
+        <p class="text-muted text-xs tracking-widest uppercase mb-2">Net</p>
+        <p class="font-mono text-2xl ${saved >= 0 ? 'text-accent' : 'text-danger'}">${saved >= 0 ? '+' : '-'}${fmt(saved)}</p>
+      </div>
+    </div>
+
+    <div class="border border-border">
+      <div class="px-5 py-3 border-b border-border">
+        <p class="text-xs tracking-widest uppercase text-muted">Category Breakdown</p>
+      </div>
+      ${mo.groups.map(g => {
+        const spent = g.cats.reduce((s,c)=>s+c.spent,0);
+        const budgeted = g.cats.reduce((s,c)=>s+c.budgeted,0);
+        const pct = budgeted > 0 ? Math.min(100,(spent/budgeted)*100) : 0;
+        return `
+          <div class="px-5 py-4 border-b border-border last:border-0">
+            <div class="flex justify-between items-center mb-2">
+              <span class="text-sm text-light">${g.name}</span>
+              <div class="flex gap-4">
+                <span class="font-mono text-xs text-muted">${fmt(spent)} / ${fmt(budgeted)}</span>
+                <span class="font-mono text-xs ${pct >= 100 ? 'text-danger' : 'text-dim'}">${Math.round(pct)}%</span>
+              </div>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill ${pct>=100?'danger':pct>=80?'warn':'safe'}" style="width:${pct}%"></div>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function renderSidePanels() {
+  const mo = getMonth();
+  // Spending by category
+  const allCats = mo.groups.flatMap(g => g.cats.map(c => ({ ...c, group: g.name })));
+  allCats.sort((a,b)=>b.spent-a.spent);
+  const top = allCats.slice(0,6);
+  document.getElementById('spending-panel').innerHTML = top.length ? top.map(c => {
+    const pct = c.budgeted > 0 ? Math.min(100,(c.spent/c.budgeted)*100) : 0;
+    return `
+      <div>
+        <div class="flex justify-between items-center mb-1">
+          <span class="text-xs text-light truncate max-w-[120px]">${c.name}</span>
+          <span class="font-mono text-xs text-dim">${fmt(c.spent)}</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill ${pct>=100?'danger':pct>=80?'warn':'safe'}" style="width:${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('') : '<p class="text-muted text-xs">No data.</p>';
+
+  // Recent transactions
+  const recent = [...mo.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+  document.getElementById('recent-panel').innerHTML = recent.length ? recent.map(tx => `
+    <div class="flex justify-between items-start py-1.5 border-b border-border last:border-0">
+      <div>
+        <p class="text-xs text-light leading-tight">${tx.payee}</p>
+        <p class="text-xs text-muted">${tx.category}</p>
+      </div>
+      <span class="font-mono text-xs ${tx.type==='income'?'text-accent':'text-dim'} shrink-0 ml-2">${tx.type==='income'?'+':'-'}${fmt(tx.amount)}</span>
+    </div>
+  `).join('') : '<p class="text-muted text-xs">No recent transactions.</p>';
+}
+
+// ─── MODALS ────────────────────────────────────────────────────────────────
+let modalAction = null;
+
+function openModal(title, body, action) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = body;
+  document.getElementById('modal-submit').onclick = action;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal(e) {
+  if (!e || e.target === document.getElementById('modal-overlay')) {
+    document.getElementById('modal-overlay').classList.remove('open');
+  }
+}
+
+function openAddTransaction() {
+  const mo = getMonth();
+  const cats = [{ group: 'Income', name: 'Income' }, ...mo.groups.flatMap(g => g.cats.map(c => ({ group: g.name, name: c.name })))];
+  openModal('Add Transaction', `
+    <select id="tx-type" class="input-field">
+      <option value="expense">Expense</option>
+      <option value="income">Income</option>
+    </select>
+    <input id="tx-payee" type="text" placeholder="Payee / Description" class="input-field" />
+    <input id="tx-amount" type="number" placeholder="Amount" min="0" step="0.01" class="input-field" />
+    <input id="tx-date" type="date" class="input-field" value="${fmtDate(new Date())}" />
+    <select id="tx-cat" class="input-field">
+      ${cats.map(c => `<option value="${c.group}|${c.name}">${c.group} → ${c.name}</option>`).join('')}
+    </select>
+  `, () => {
+    const type = document.getElementById('tx-type').value;
+    const payee = document.getElementById('tx-payee').value.trim();
+    const amount = parseFloat(document.getElementById('tx-amount').value);
+    const date = document.getElementById('tx-date').value;
+    const [catGroup, category] = document.getElementById('tx-cat').value.split('|');
+    if (!payee || isNaN(amount) || amount <= 0) return;
+    const tx = { id: uid(), date, payee, category, catGroup, amount, type };
+    getMonth().transactions.push(tx);
+    // Update spent in cat
+    if (type === 'expense') {
+      const g = getMonth().groups.find(g=>g.name===catGroup);
+      if (g) { const c = g.cats.find(c=>c.name===category); if (c) c.spent += amount; }
+    } else {
+      const inc = getMonth().income.find(i=>i.name===category);
+      if (inc) inc.received += amount;
+    }
+    save(); renderAll(); closeModal();
+  });
+}
+
+function openAddIncome() {
+  openModal('Add Income Source', `
+    <input id="inc-name" type="text" placeholder="Name (e.g. Freelance)" class="input-field" />
+    <input id="inc-budgeted" type="number" placeholder="Budgeted Amount" min="0" step="0.01" class="input-field" />
+    <input id="inc-received" type="number" placeholder="Received Amount" min="0" step="0.01" class="input-field" />
+  `, () => {
+    const name = document.getElementById('inc-name').value.trim();
+    const budgeted = parseFloat(document.getElementById('inc-budgeted').value) || 0;
+    const received = parseFloat(document.getElementById('inc-received').value) || 0;
+    if (!name) return;
+    getMonth().income.push({ id: uid(), name, budgeted, received });
+    save(); renderAll(); closeModal();
+  });
+}
+
+function openEditIncome(id) {
+  const inc = getMonth().income.find(i=>i.id===id);
+  if (!inc) return;
+  openModal(`Edit: ${inc.name}`, `
+    <input id="inc-name" type="text" value="${inc.name}" class="input-field" />
+    <label class="text-xs text-muted tracking-wide">Budgeted</label>
+    <input id="inc-budgeted" type="number" value="${inc.budgeted}" min="0" step="0.01" class="input-field" />
+    <label class="text-xs text-muted tracking-wide">Received</label>
+    <input id="inc-received" type="number" value="${inc.received}" min="0" step="0.01" class="input-field" />
+    <button onclick="deleteIncome('${id}')" class="text-xs text-danger hover:text-bright transition-colors mt-1">Delete source</button>
+  `, () => {
+    inc.name = document.getElementById('inc-name').value.trim() || inc.name;
+    inc.budgeted = parseFloat(document.getElementById('inc-budgeted').value) || 0;
+    inc.received = parseFloat(document.getElementById('inc-received').value) || 0;
+    save(); renderAll(); closeModal();
+  });
+}
+
+function deleteIncome(id) {
+  const mo = getMonth();
+  mo.income = mo.income.filter(i=>i.id!==id);
+  save(); renderAll(); closeModal();
+}
+
+function openAddGroup() {
+  openModal('Add Group', `
+    <input id="group-name" type="text" placeholder="Group name (e.g. Savings)" class="input-field" />
+  `, () => {
+    const name = document.getElementById('group-name').value.trim();
+    if (!name) return;
+    getMonth().groups.push({ id: uid(), name, cats: [] });
+    save(); renderAll(); closeModal();
+  });
+}
+
+function openAddCat(groupId) {
+  openModal('Add Category', `
+    <input id="cat-name" type="text" placeholder="Category name" class="input-field" />
+    <input id="cat-budget" type="number" placeholder="Budgeted amount" min="0" step="0.01" class="input-field" />
+  `, () => {
+    const name = document.getElementById('cat-name').value.trim();
+    const budgeted = parseFloat(document.getElementById('cat-budget').value) || 0;
+    if (!name) return;
+    const g = getMonth().groups.find(g=>g.id===groupId);
+    if (g) g.cats.push({ id: uid(), name, budgeted, spent: 0 });
+    save(); renderAll(); closeModal();
+  });
+}
+
+function openEditCat(groupId, catId) {
+  const g = getMonth().groups.find(g=>g.id===groupId);
+  const cat = g?.cats.find(c=>c.id===catId);
+  if (!cat) return;
+  openModal(`Edit: ${cat.name}`, `
+    <input id="cat-name" type="text" value="${cat.name}" class="input-field" />
+    <label class="text-xs text-muted tracking-wide">Budgeted</label>
+    <input id="cat-budget" type="number" value="${cat.budgeted}" min="0" step="0.01" class="input-field" />
+    <label class="text-xs text-muted tracking-wide">Spent (actual)</label>
+    <input id="cat-spent" type="number" value="${cat.spent}" min="0" step="0.01" class="input-field" />
+    <button onclick="deleteCat('${groupId}','${catId}')" class="text-xs text-danger hover:text-bright transition-colors mt-1">Delete category</button>
+  `, () => {
+    cat.name = document.getElementById('cat-name').value.trim() || cat.name;
+    cat.budgeted = parseFloat(document.getElementById('cat-budget').value) || 0;
+    cat.spent = parseFloat(document.getElementById('cat-spent').value) || 0;
+    save(); renderAll(); closeModal();
+  });
+}
+
+function deleteCat(groupId, catId) {
+  const g = getMonth().groups.find(g=>g.id===groupId);
+  if (g) g.cats = g.cats.filter(c=>c.id!==catId);
+  save(); renderAll(); closeModal();
+}
+
+function deleteTransaction(id) {
+  const mo = getMonth();
+  const tx = mo.transactions.find(t=>t.id===id);
+  if (!tx) return;
+  // reverse spent
+  if (tx.type==='expense') {
+    const g = mo.groups.find(g=>g.name===tx.catGroup);
+    if (g) { const c = g.cats.find(c=>c.name===tx.category); if (c) c.spent = Math.max(0, c.spent - tx.amount); }
+  }
+  mo.transactions = mo.transactions.filter(t=>t.id!==id);
+  save(); renderAll();
+}
+
+// ─── TABS ──────────────────────────────────────────────────────────────────
+function switchTab(name, el) {
+  ['budget','transactions','overview'].forEach(t => {
+    document.getElementById('tab-'+t).classList.add('hidden');
+  });
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.remove('hidden');
+  el.classList.add('active');
+  if (name === 'transactions') renderTransactions();
+  if (name === 'overview') renderOverview();
+}
+</script>
+</body>
+</html>

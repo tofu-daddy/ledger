@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ledger — Personal Budget</title>
+  <meta name="description" content="Ledger — a zero-based personal budgeting app inspired by EveryDollar." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist+Mono:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<!-- ─── TOAST CONTAINER ─────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ─── LOGIN ───────────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <!-- Theme toggle on login screen -->
+  <button class="icon-btn login-theme-toggle" onclick="toggleTheme()" title="Toggle theme (D)">
+    <span class="theme-toggle-icon">☀</span>
+  </button>
+
+  <div class="login-card slide-up">
+    <div class="login-brand">
+      <p class="login-eyebrow">Personal Finance</p>
+      <h1 class="login-wordmark">Ledger</h1>
+    </div>
+    <div id="login-error" class="login-error">Incorrect credentials. Please try again.</div>
+    <div class="login-form">
+      <input id="login-user" type="text"     placeholder="Username" class="input-field" autocomplete="username" />
+      <input id="login-pass" type="password" placeholder="Password" class="input-field" autocomplete="current-password" />
+      <button onclick="doLogin()" class="btn-primary" style="padding:12px 16px;font-size:12px;letter-spacing:.12em">
+        Sign In →
+      </button>
+    </div>
+    <p class="login-hint">Default: <span style="color:var(--dim)">toni</span> / <span style="color:var(--dim)">budget</span></p>
+  </div>
+</div>
+
+<!-- ─── APP ─────────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden app-shell">
+
+  <!-- ── HEADER ── -->
+  <header class="app-header">
+    <div class="header-left">
+      <h1 class="app-wordmark">Ledger</h1>
+      <nav class="nav-tabs">
+        <span class="nav-tab active" id="tab-btn-budget"       onclick="switchTab('budget', this)">Budget</span>
+        <span class="nav-tab"        id="tab-btn-transactions" onclick="switchTab('transactions', this)">Transactions</span>
+        <span class="nav-tab"        id="tab-btn-overview"     onclick="switchTab('overview', this)">Overview</span>
+      </nav>
+    </div>
+
+    <div class="header-right">
+      <span class="header-month" id="header-month"></span>
+
+      <button class="btn-primary" onclick="openAddTransaction()" title="New transaction (T)">+ Add</button>
+
+      <!-- Export dropdown -->
+      <div class="dropdown-wrapper">
+        <button class="icon-btn" onclick="toggleDropdown('export-menu')" title="Export / Import">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M8 1v9M5 7l3 3 3-3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
+          </svg>
+        </button>
+        <div class="dropdown-menu" id="export-menu">
+          <div class="dropdown-label">Export</div>
+          <div class="dropdown-item" onclick="exportCSV(); toggleDropdown('export-menu')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="12" height="12" rx="1"/><path d="M5 8h6M5 5h6M5 11h4"/></svg>
+            Export CSV (this month)
+          </div>
+          <div class="dropdown-item" onclick="exportJSON(); toggleDropdown('export-menu')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4c-1 0-2 .9-2 2s1 2 2 2H3c-1 0-2 .9-2 2s1 2 2 2M12 4c1 0 2 .9 2 2s-1 2-2 2h1c1 0 2 .9 2 2s-1 2-2 2"/><rect x="5" y="1" width="6" height="14" rx="1"/></svg>
+            Backup JSON (all months)
+          </div>
+          <div class="dropdown-item" onclick="printView(); toggleDropdown('export-menu')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="1" width="10" height="4"/><path d="M3 5H1v7h2v3h10v-3h2V5H3zM3 9h10"/></svg>
+            Print / PDF
+          </div>
+          <div class="dropdown-label">Import</div>
+          <div class="dropdown-item" onclick="openImport(); toggleDropdown('export-menu')">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M8 11V2M5 5l3-3 3 3M2 12v1a1 1 0 001 1h10a1 1 0 001-1v-1"/>
+            </svg>
+            Restore JSON Backup
+          </div>
+        </div>
+      </div>
+
+      <!-- Theme toggle -->
+      <button class="icon-btn" onclick="toggleTheme()" title="Toggle light/dark (D)">
+        <span class="theme-toggle-icon">☀</span>
+      </button>
+
+      <button class="btn-link" onclick="doLogout()" style="margin-left:4px">Sign out</button>
+    </div>
+  </header>
+
+  <!-- ── BODY ── -->
+  <div class="app-body">
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <p class="sidebar-label">Months</p>
+      <div id="month-list"></div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+      <!-- Copy prev month banner -->
+      <div id="copy-banner" class="copy-month-banner hidden">
+        <span>No budget yet. Copy from <strong id="copy-banner-month"></strong>?</span>
+        <button class="btn-primary" style="font-size:10px;padding:6px 12px" onclick="copyPrevMonth()">Copy Budget</button>
+      </div>
+
+      <!-- ── BUDGET TAB ── -->
+      <div id="tab-budget" class="tab-pane active">
+        <!-- Summary bar -->
+        <div class="summary-bar">
+          <div class="summary-cell">
+            <p class="summary-label">Budgeted Income</p>
+            <p class="summary-value" id="sum-income">$0.00</p>
+          </div>
+          <div class="summary-cell">
+            <p class="summary-label">Budgeted</p>
+            <p class="summary-value" id="sum-budgeted">$0.00</p>
+          </div>
+          <div class="summary-cell">
+            <p class="summary-label">Left to Budget</p>
+            <p class="summary-value" id="sum-left">$0.00</p>
+          </div>
+          <div class="summary-ring-cell">
+            <canvas id="summary-ring" width="72" height="72"></canvas>
+          </div>
+        </div>
+
+        <!-- Groups -->
+        <div id="category-groups" class="groups-container"></div>
+
+        <div style="padding: 0 24px 24px">
+          <button class="btn-ghost" onclick="openAddGroup()" style="font-size:11px">+ Add Group</button>
+        </div>
+      </div>
+
+      <!-- ── TRANSACTIONS TAB ── -->
+      <div id="tab-transactions" class="tab-pane" style="padding:24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <h2 style="font-family:var(--serif);font-size:26px;color:var(--bright)">Transactions</h2>
+          <button class="btn-link" onclick="openAddTransaction()" style="color:var(--accent)">+ New Transaction</button>
+        </div>
+        <div class="tx-toolbar">
+          <input class="search-input" id="tx-search" type="text" placeholder="Search payee, category, memo…" oninput="setTxSearch(this.value)" />
+          <select class="filter-select" id="tx-filter" onchange="setTxTypeFilter(this.value)">
+            <option value="all">All types</option>
+            <option value="expense">Expenses</option>
+            <option value="income">Income</option>
+          </select>
+          <select class="filter-select" id="tx-group-filter" onchange="setTxGroupFilter(this.value)">
+            <option value="all">All groups</option>
+          </select>
+          <button class="btn-ghost" onclick="clearTxFilters()">Clear</button>
+        </div>
+        <div id="tx-list"></div>
+      </div>
+
+      <!-- ── OVERVIEW TAB ── -->
+      <div id="tab-overview" class="tab-pane" style="padding:24px">
+        <h2 style="font-family:var(--serif);font-size:26px;color:var(--bright);margin-bottom:20px">Overview</h2>
+
+        <div class="overview-kpis">
+          <div class="kpi-card">
+            <p class="kpi-label">Income Received</p>
+            <p class="kpi-value text-accent" id="ov-income">$0.00</p>
+          </div>
+          <div class="kpi-card">
+            <p class="kpi-label">Total Spent</p>
+            <p class="kpi-value" id="ov-spent">$0.00</p>
+          </div>
+          <div class="kpi-card">
+            <p class="kpi-label">Net</p>
+            <p class="kpi-value" id="ov-net">$0.00</p>
+          </div>
+        </div>
+
+        <div class="overview-grid">
+          <div class="overview-breakdown">
+            <div class="overview-section-header">Category Breakdown</div>
+            <div id="ov-breakdown"></div>
+          </div>
+          <div class="donut-wrapper">
+            <p class="donut-title">Spending by Group</p>
+            <canvas id="donut-canvas" width="180" height="180"></canvas>
+            <div class="donut-legend" id="donut-legend"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Right panel -->
+    <aside class="right-panel">
+      <div class="panel-section">
+        <p class="panel-label">Spending by Group</p>
+        <div id="spending-panel"></div>
+      </div>
+      <div class="panel-section">
+        <p class="panel-label">Recent</p>
+        <div id="recent-panel"></div>
+      </div>
+      <div class="panel-section" style="border-top:1px solid var(--border);margin-top:auto">
+        <p style="font-size:10px;color:var(--muted);letter-spacing:.06em;line-height:1.6">
+          <strong style="color:var(--dim)">Shortcuts</strong><br>
+          <span style="display:block;margin-top:4px"><kbd style="background:var(--border);padding:1px 4px;border-radius:2px;font-size:9px">T</kbd> New transaction</span>
+          <span style="display:block"><kbd style="background:var(--border);padding:1px 4px;border-radius:2px;font-size:9px">G</kbd> Add group</span>
+          <span style="display:block"><kbd style="background:var(--border);padding:1px 4px;border-radius:2px;font-size:9px">D</kbd> Toggle theme</span>
+          <span style="display:block"><kbd style="background:var(--border);padding:1px 4px;border-radius:2px;font-size:9px">Esc</kbd> Close modal</span>
+        </p>
+      </div>
+    </aside>
+
+  </div>
+</div><!-- /#app -->
+
+<!-- ─── MODAL ──────────────────────────────────────────────────────────── -->
+<div id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 class="modal-title" id="modal-title">Modal</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn-primary" id="modal-submit-btn" onclick="modalSubmit()" style="flex:1">Save</button>
+      <button class="btn-ghost" onclick="closeModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="app.js"></script>
+<script>
+  // Boot
+  (function () {
+    // Pre-apply saved theme before app loads (avoids flash)
+    try {
+      const saved = JSON.parse(localStorage.getItem('ledger_v2') || '{}');
+      if (saved.theme === 'light') {
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.querySelectorAll('.theme-toggle-icon').forEach(el => el.textContent = '☽');
+      }
+    } catch (e) {}
+  })();
+
+  document.getElementById('login-pass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  document.getElementById('login-user').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('login-pass').focus(); });
+
+  // Expose for inline onclick convenience
+  window.onload = () => {
+    // Nothing extra needed — app starts on login
+  };
+</script>
+</body>
+</html>
