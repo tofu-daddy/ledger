@@ -211,6 +211,7 @@ async function doLogin() {
   if (CREDENTIALS[u] && CREDENTIALS[u] === p) {
     currentUser = u;
     remoteSyncEnabled = !!sbClient;
+    localStorage.setItem('ledger_active_user', u);
     const screen = document.getElementById('login-screen');
     screen.style.opacity = '0';
     setTimeout(async () => {
@@ -232,6 +233,7 @@ function doLogout() {
   document.getElementById('login-error').style.display = 'none';
   currentUser = null;
   remoteSyncEnabled = false;
+  localStorage.removeItem('ledger_active_user');
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
@@ -1205,6 +1207,22 @@ function showToast(msg, type = 'success') {
 
 // Initialize cloud client once at boot; app still works fully offline/local.
 initSupabase();
+
+function tryAutoLogin() {
+  const remembered = (localStorage.getItem('ledger_active_user') || '').trim().toLowerCase();
+  if (!remembered || !CREDENTIALS[remembered]) return;
+  currentUser = remembered;
+  remoteSyncEnabled = !!sbClient;
+  const screen = document.getElementById('login-screen');
+  const app = document.getElementById('app');
+  if (!screen || !app) return;
+  screen.style.display = 'none';
+  screen.style.opacity = '0';
+  app.classList.remove('hidden');
+  initApp();
+}
+
+tryAutoLogin();
 
 // ── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
