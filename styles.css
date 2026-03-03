@@ -385,7 +385,7 @@ body::after {
 /* ── SUMMARY BAR ─────────────────────────────────────────────────────── */
 .summary-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr;
   border: 1px solid var(--border);
   background: var(--surface);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -417,18 +417,53 @@ body::after {
 }
 
 .summary-ring-cell {
-  padding: 12px 20px;
+  padding: 14px 16px;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: stretch;
   border-left: 1px solid var(--border);
   background: linear-gradient(165deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%);
 }
 
-#summary-ring {
-  width: 72px;
-  height: 72px;
-  display: block;
+.summary-overview {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.summary-overview-title {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.summary-overview-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+}
+
+.summary-overview-k {
+  color: var(--dim);
+}
+
+.summary-overview-v {
+  color: var(--bright);
+  font-family: var(--mono);
+}
+
+.summary-overview-foot {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: .04em;
 }
 
 /* ── CATEGORY GROUPS ─────────────────────────────────────────────────── */

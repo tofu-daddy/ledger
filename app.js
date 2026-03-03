@@ -373,15 +373,27 @@ function renderBudget() {
   const totalIncome   = mo.income.reduce((s, i) => s + i.budgeted, 0);
   const totalBudgeted = mo.groups.reduce((s, g) => s + g.cats.reduce((ss, c) => ss + c.budgeted, 0), 0);
   const left = totalIncome - totalBudgeted;
+  const totalReceived = mo.income.reduce((s, i) => s + i.received, 0);
+  const totalSpent = mo.groups.reduce((s, g) => s + g.cats.reduce((ss, c) => ss + c.spent, 0), 0);
+  const net = totalReceived - totalSpent;
+  const topGroup = mo.groups
+    .map(g => ({ name: g.name, spent: g.cats.reduce((s, c) => s + c.spent, 0) }))
+    .sort((a, b) => b.spent - a.spent)[0];
 
   document.getElementById('sum-income').textContent   = fmt(totalIncome);
   document.getElementById('sum-budgeted').textContent = fmt(totalBudgeted);
   const leftEl = document.getElementById('sum-left');
   leftEl.textContent = (left < 0 ? '-' : '') + fmt(left);
   leftEl.style.color = left < 0 ? 'var(--danger)' : left === 0 ? 'var(--accent)' : 'var(--bright)';
-
-  // Mini ring chart
-  renderSummaryRing(totalIncome, totalBudgeted);
+  document.getElementById('sum-ov-income').textContent = fmt(totalReceived);
+  document.getElementById('sum-ov-spent').textContent = fmt(totalSpent);
+  const netEl = document.getElementById('sum-ov-net');
+  netEl.textContent = (net >= 0 ? '+' : '-') + fmt(net);
+  netEl.style.color = net >= 0 ? 'var(--accent)' : 'var(--danger)';
+  document.getElementById('sum-ov-top-group').textContent =
+    topGroup && topGroup.spent > 0
+      ? `Top Group: ${topGroup.name} (${fmt(topGroup.spent)})`
+      : 'Top Group: —';
 
   const container = document.getElementById('category-groups');
   container.innerHTML = '';
