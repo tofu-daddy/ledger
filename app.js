@@ -56,6 +56,16 @@ function stateContentScore(s) {
   return total;
 }
 
+function monthContentScore(m) {
+  if (!m || typeof m !== 'object') return 0;
+  return (
+    (m.transactions?.length || 0) +
+    (m.income?.length || 0) +
+    (m.groups?.length || 0) +
+    (m.groups || []).reduce((sum, g) => sum + (g.cats?.length || 0), 0)
+  );
+}
+
 function prevMonthKey(key) {
   const [y, m] = key.split('-').map(Number);
   let pm = m - 2, py = y;
@@ -96,6 +106,16 @@ function ensureStateShape() {
   if (typeof state.ui.txSearch !== 'string') state.ui.txSearch = '';
   if (!state.ui.txFilter) state.ui.txFilter = 'all';
   if (!state.ui.txGroupFilter) state.ui.txGroupFilter = 'all';
+  if (state.data && typeof state.data === 'object') {
+    const entries = Object.entries(state.data);
+    if (entries.length) {
+      const currentScore = monthContentScore(state.data[state.currentMonth]);
+      const best = entries
+        .map(([k, v]) => ({ key: k, score: monthContentScore(v) }))
+        .sort((a, b) => b.score - a.score)[0];
+      if (best && best.score > currentScore) state.currentMonth = best.key;
+    }
+  }
 }
 
 function load() {
