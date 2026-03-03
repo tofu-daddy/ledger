@@ -38,6 +38,24 @@ function today()        { const d = new Date(); return { y: d.getFullYear(), m: 
 function fmtDate(d)     { return d.toISOString().slice(0, 10); }
 function fmt(n)         { return '$' + Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 
+function toMillis(v) {
+  const t = Date.parse(v || '');
+  return Number.isNaN(t) ? 0 : t;
+}
+
+function stateContentScore(s) {
+  if (!s || !s.data || typeof s.data !== 'object') return 0;
+  let total = 0;
+  Object.values(s.data).forEach(m => {
+    if (!m || typeof m !== 'object') return;
+    total += (m.transactions?.length || 0);
+    total += (m.income?.length || 0);
+    total += (m.groups?.length || 0);
+    total += (m.groups || []).reduce((sum, g) => sum + (g.cats?.length || 0), 0);
+  });
+  return total;
+}
+
 function prevMonthKey(key) {
   const [y, m] = key.split('-').map(Number);
   let pm = m - 2, py = y;
@@ -57,6 +75,11 @@ function getMonth(key) {
 
 // ── PERSISTENCE ─────────────────────────────────────────────────────────
 function save() {
+  ensureStateShape();
+  if (!state.meta || typeof state.meta !== 'object') state.meta = {};
+  state.meta.updatedAt = new Date().toISOString();
+  const prevRaw = localStorage.getItem('ledger_v2');
+  if (prevRaw) localStorage.setItem('ledger_v2_prev', prevRaw);
   localStorage.setItem('ledger_v2', JSON.stringify(state));
   queueRemoteSave();
 }
@@ -68,6 +91,8 @@ function ensureStateShape() {
   if (!state.theme) state.theme = 'dark';
   if (!state.data || typeof state.data !== 'object') state.data = {};
   if (!state.ui || typeof state.ui !== 'object') state.ui = {};
+  if (!state.meta || typeof state.meta !== 'object') state.meta = {};
+  if (!state.meta.updatedAt) state.meta.updatedAt = new Date().toISOString();
   if (typeof state.ui.txSearch !== 'string') state.ui.txSearch = '';
   if (!state.ui.txFilter) state.ui.txFilter = 'all';
   if (!state.ui.txGroupFilter) state.ui.txGroupFilter = 'all';
@@ -122,17 +147,46 @@ async function syncRemoteState() {
 async function hydrateFromRemote() {
   if (!remoteSyncEnabled || !sbClient || !currentUser) return;
   try {
+    const localRaw = localStorage.getItem('ledger_v2');
+    let localState = null;
+    if (localRaw) {
+      try { localState = JSON.parse(localRaw); } catch (e) { /* ignore */ }
+    }
+
     const { data, error } = await sbClient
       .from(SUPABASE_TABLE)
-      .select('state_json')
+      .select('state_json, updated_at')
       .eq('username', currentUser)
       .maybeSingle();
 
     if (error) throw error;
     if (data?.state_json && typeof data.state_json === 'object') {
-      state = data.state_json;
-      ensureStateShape();
-      localStorage.setItem('ledger_v2', JSON.stringify(state));
+      const remoteState = data.state_json;
+      const remoteScore = stateContentScore(remoteState);
+      const localScore = stateContentScore(localState);
+      const remoteTs = Math.max(
+        toMillis(data.updated_at),
+        toMillis(remoteState?.meta?.updatedAt)
+      );
+      const localTs = toMillis(localState?.meta?.updatedAt);
+
+      const chooseRemote = (
+        (!localState) ||
+        (remoteScore > localScore) ||
+        (remoteScore === localScore && remoteTs >= localTs)
+      );
+
+      if (chooseRemote) {
+        const prevRaw = localStorage.getItem('ledger_v2');
+        if (prevRaw) localStorage.setItem('ledger_v2_prev', prevRaw);
+        state = remoteState;
+        ensureStateShape();
+        localStorage.setItem('ledger_v2', JSON.stringify(state));
+      } else {
+        state = localState;
+        ensureStateShape();
+        queueRemoteSave();
+      }
     } else {
       queueRemoteSave();
     }
