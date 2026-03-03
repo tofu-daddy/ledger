@@ -1209,6 +1209,75 @@ function openImport() {
   }, { submitLabel: 'Import' });
 }
 
+function monthLabel(key) {
+  const [y, m] = String(key).split('-').map(Number);
+  if (!y || !m) return key;
+  return `${FULL_MONTHS[m - 1]} ${y}`;
+}
+
+function moveMonthData(fromKey, toKey) {
+  if (!fromKey || !toKey || fromKey === toKey) return false;
+  const from = getMonth(fromKey);
+  if (!from) return false;
+  const hasData = monthContentScore(from) > 0;
+  if (!hasData) return false;
+
+  state.data[toKey] = JSON.parse(JSON.stringify(from));
+  state.data[fromKey] = defaultMonth();
+  if (state.currentMonth === fromKey) state.currentMonth = toKey;
+  return true;
+}
+
+function openMoveMonthData() {
+  const withData = Object.entries(state.data || {})
+    .filter(([, m]) => monthContentScore(m) > 0)
+    .map(([k]) => k)
+    .sort();
+
+  if (!withData.length) {
+    showToast('No source month has data to move.', 'info');
+    return;
+  }
+
+  const allMonths = Array.from(new Set([...Object.keys(state.data || {}), ...withData])).sort();
+  const defaultFrom = state.currentMonth && withData.includes(state.currentMonth) ? state.currentMonth : withData[0];
+  const defaultTo = allMonths.find(k => k !== defaultFrom) || defaultFrom;
+
+  const fromOpts = withData.map(k => `<option value="${k}" ${k === defaultFrom ? 'selected' : ''}>${monthLabel(k)}</option>`).join('');
+  const toOpts = allMonths.map(k => `<option value="${k}" ${k === defaultTo ? 'selected' : ''}>${monthLabel(k)}</option>`).join('');
+
+  openModal('Move Month Data', `
+    <p style="color:var(--dim);font-size:12px;margin-bottom:8px">
+      Move all budget + transactions from one month to another. This replaces the target month and clears the source month.
+    </p>
+    <div class="input-group">
+      <label class="input-label">From (source month)</label>
+      <select id="move-from-month" class="input-field">${fromOpts}</select>
+    </div>
+    <div class="input-group">
+      <label class="input-label">To (target month)</label>
+      <select id="move-to-month" class="input-field">${toOpts}</select>
+    </div>
+  `, () => {
+    const fromKey = document.getElementById('move-from-month').value;
+    const toKey = document.getElementById('move-to-month').value;
+    if (!fromKey || !toKey || fromKey === toKey) {
+      showToast('Choose two different months.', 'error');
+      return;
+    }
+    const ok = moveMonthData(fromKey, toKey);
+    if (!ok) {
+      showToast('Nothing moved. Source month has no data.', 'info');
+      return;
+    }
+    save();
+    renderMonthList();
+    renderAll();
+    closeModal();
+    showToast(`Moved ${monthLabel(fromKey)} → ${monthLabel(toKey)}`, 'success');
+  }, { submitLabel: 'Move' });
+}
+
 function printView() {
   window.print();
 }
