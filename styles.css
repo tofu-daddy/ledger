@@ -385,7 +385,7 @@ body::after {
 /* ── SUMMARY BAR ─────────────────────────────────────────────────────── */
 .summary-bar {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.2fr;
+  grid-template-columns: 1fr 1fr 1fr 1.5fr;
   border: 1px solid var(--border);
   background: var(--surface);
   background: color-mix(in srgb, var(--surface) 88%, transparent);
@@ -417,7 +417,7 @@ body::after {
 }
 
 .summary-ring-cell {
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   align-items: stretch;
   justify-content: stretch;
@@ -436,12 +436,12 @@ body::after {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 2px 0 4px;
+  margin: 0 0 6px;
 }
 
 #sum-quick-donut {
-  width: 84px;
-  height: 84px;
+  width: 108px;
+  height: 108px;
   display: block;
 }
 

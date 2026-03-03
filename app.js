@@ -497,7 +497,7 @@ function renderQuickOverviewDonut(mo) {
   const canvas = document.getElementById('sum-quick-donut');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  const cssSize = 84;
+  const cssSize = 108;
   const dpr = Math.max(1, window.devicePixelRatio || 1);
   if (canvas.width !== Math.round(cssSize * dpr) || canvas.height !== Math.round(cssSize * dpr)) {
     canvas.width = Math.round(cssSize * dpr);
@@ -515,8 +515,8 @@ function renderQuickOverviewDonut(mo) {
   const size = cssSize;
   const cx = size / 2;
   const cy = size / 2;
-  const radius = 28;
-  const lineWidth = 12;
+  const radius = 36;
+  const lineWidth = 15;
   ctx.clearRect(0, 0, size, size);
 
   const groups = mo.groups
@@ -544,16 +544,16 @@ function renderQuickOverviewDonut(mo) {
       startAngle += slice + gap;
     });
     ctx.fillStyle = bright;
-    ctx.font = `bold 10px 'Geist Mono', monospace`;
+    ctx.font = `bold 11px 'Geist Mono', monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText('SPEND', cx, cy - 4);
+    ctx.fillText('SPEND', cx, cy - 5);
     ctx.fillStyle = dim;
-    ctx.font = `10px 'Geist Mono', monospace`;
-    ctx.fillText(`${groups.length} grp`, cx, cy + 9);
+    ctx.font = `11px 'Geist Mono', monospace`;
+    ctx.fillText(`${groups.length} grp`, cx, cy + 11);
   } else {
     ctx.fillStyle = dim;
-    ctx.font = `10px 'Geist Mono', monospace`;
+    ctx.font = `11px 'Geist Mono', monospace`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('No spend', cx, cy);
