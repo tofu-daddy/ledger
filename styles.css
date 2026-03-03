@@ -432,6 +432,19 @@ body::after {
   gap: 6px;
 }
 
+.summary-overview-donut-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 2px 0 4px;
+}
+
+#sum-quick-donut {
+  width: 84px;
+  height: 84px;
+  display: block;
+}
+
 .summary-overview-title {
   font-size: 10px;
   letter-spacing: .12em;

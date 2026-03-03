@@ -394,6 +394,7 @@ function renderBudget() {
     topGroup && topGroup.spent > 0
       ? `Top Group: ${topGroup.name} (${fmt(topGroup.spent)})`
       : 'Top Group: —';
+  renderQuickOverviewDonut(mo);
 
   const container = document.getElementById('category-groups');
   container.innerHTML = '';
@@ -490,6 +491,73 @@ function renderBudget() {
     `;
     container.appendChild(sec);
   });
+}
+
+function renderQuickOverviewDonut(mo) {
+  const canvas = document.getElementById('sum-quick-donut');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const cssSize = 84;
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  if (canvas.width !== Math.round(cssSize * dpr) || canvas.height !== Math.round(cssSize * dpr)) {
+    canvas.width = Math.round(cssSize * dpr);
+    canvas.height = Math.round(cssSize * dpr);
+    canvas.style.width = `${cssSize}px`;
+    canvas.style.height = `${cssSize}px`;
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const style = getComputedStyle(document.documentElement);
+  const track = style.getPropertyValue('--border').trim() || '#27404d';
+  const dim = style.getPropertyValue('--dim').trim() || '#a6bac4';
+  const bright = style.getPropertyValue('--bright').trim() || '#f6fafc';
+
+  const size = cssSize;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = 28;
+  const lineWidth = 12;
+  ctx.clearRect(0, 0, size, size);
+
+  const groups = mo.groups
+    .map((g, i) => ({ value: g.cats.reduce((s, c) => s + c.spent, 0), color: DONUT_COLORS[i % DONUT_COLORS.length] }))
+    .filter(g => g.value > 0);
+  const total = groups.reduce((s, g) => s + g.value, 0);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.strokeStyle = track;
+  ctx.lineWidth = lineWidth;
+  ctx.stroke();
+
+  if (total > 0) {
+    let startAngle = -Math.PI / 2;
+    const gap = 0.03;
+    groups.forEach(g => {
+      const slice = (g.value / total) * (Math.PI * 2 - gap * groups.length);
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius, startAngle, startAngle + slice);
+      ctx.strokeStyle = g.color;
+      ctx.lineWidth = lineWidth;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+      startAngle += slice + gap;
+    });
+    ctx.fillStyle = bright;
+    ctx.font = `bold 10px 'Geist Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('SPEND', cx, cy - 4);
+    ctx.fillStyle = dim;
+    ctx.font = `10px 'Geist Mono', monospace`;
+    ctx.fillText(`${groups.length} grp`, cx, cy + 9);
+  } else {
+    ctx.fillStyle = dim;
+    ctx.font = `10px 'Geist Mono', monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('No spend', cx, cy);
+  }
 }
 
 // Mini ring chart in summary bar
