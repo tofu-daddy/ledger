@@ -5,7 +5,7 @@
 // ── CONSTANTS ──────────────────────────────────────────────────────────
 const MONTHS      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const FULL_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const CREDENTIALS = { toni: 'budget' };
+const DEFAULT_USER = 'toni';
 const DONUT_COLORS = ['#33c7a5','#4fa7ff','#ff8f6b','#f2be5a','#5ad2c9','#8aa7ff','#7adf7f','#f38ab3'];
 const SUPABASE_URL = 'https://yeiwludpviidmlfxeuid.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InllaXdsdWRwdmlpZG1sZnhldWlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI0OTI2ODksImV4cCI6MjA4ODA2ODY4OX0.wCOym6qzSNGuY36BdZktYi7CFfIqaTbeMZxzP8cODYs';
@@ -202,38 +202,6 @@ function toggleTheme() {
   applyTheme(next);
   if (!document.getElementById('app').classList.contains('hidden')) renderAll();
   save();
-}
-
-// ── AUTH ─────────────────────────────────────────────────────────────────
-async function doLogin() {
-  const u = document.getElementById('login-user').value.trim().toLowerCase();
-  const p = document.getElementById('login-pass').value;
-  if (CREDENTIALS[u] && CREDENTIALS[u] === p) {
-    currentUser = u;
-    remoteSyncEnabled = !!sbClient;
-    localStorage.setItem('ledger_active_user', u);
-    const screen = document.getElementById('login-screen');
-    screen.style.opacity = '0';
-    setTimeout(async () => {
-      screen.style.display = 'none';
-      document.getElementById('app').classList.remove('hidden');
-      await initApp();
-    }, 280);
-  } else {
-    document.getElementById('login-error').style.display = 'block';
-  }
-}
-
-function doLogout() {
-  document.getElementById('app').classList.add('hidden');
-  const screen = document.getElementById('login-screen');
-  screen.style.display = 'flex';
-  screen.style.opacity = '1';
-  document.getElementById('login-pass').value = '';
-  document.getElementById('login-error').style.display = 'none';
-  currentUser = null;
-  remoteSyncEnabled = false;
-  localStorage.removeItem('ledger_active_user');
 }
 
 // ── INIT ─────────────────────────────────────────────────────────────────
@@ -1205,24 +1173,11 @@ function showToast(msg, type = 'success') {
   }, 2200);
 }
 
-// Initialize cloud client once at boot; app still works fully offline/local.
+// Initialize cloud client and boot app once at startup.
 initSupabase();
-
-function tryAutoLogin() {
-  const remembered = (localStorage.getItem('ledger_active_user') || '').trim().toLowerCase();
-  if (!remembered || !CREDENTIALS[remembered]) return;
-  currentUser = remembered;
-  remoteSyncEnabled = !!sbClient;
-  const screen = document.getElementById('login-screen');
-  const app = document.getElementById('app');
-  if (!screen || !app) return;
-  screen.style.display = 'none';
-  screen.style.opacity = '0';
-  app.classList.remove('hidden');
-  initApp();
-}
-
-tryAutoLogin();
+currentUser = DEFAULT_USER;
+remoteSyncEnabled = !!sbClient;
+initApp();
 
 // ── KEYBOARD SHORTCUTS ────────────────────────────────────────────────────
 document.addEventListener('keydown', e => {
